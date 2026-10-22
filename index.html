@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Peso HL - Tucuruí & Altamira (2026)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', system-ui, sans-serif; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+        .btn-tab.active { background-color: #2563eb; color: white; border-color: #3b82f6; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- CABEÇALHO E FILTROS -->
+        <div class="card p-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white tracking-tight">Análise de Representatividade (Peso HL) — 2026</h1>
+                <p class="text-slate-400 text-sm">Participação por Vendedor, Setor e Cidade no Volume Total (Tucuruí & Altamira)</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="inline-flex rounded-lg bg-slate-900 p-1 border border-slate-700">
+                    <button onclick="setRevenda('TODAS')" id="tab-TODAS" class="btn-tab active px-4 py-1.5 rounded-md text-sm font-medium transition">Consolidado</button>
+                    <button onclick="setRevenda('Tucuruí')" id="tab-Tucuruí" class="btn-tab px-4 py-1.5 rounded-md text-sm font-medium text-slate-300 hover:text-white transition">Tucuruí</button>
+                    <button onclick="setRevenda('Altamira')" id="tab-Altamira" class="btn-tab px-4 py-1.5 rounded-md text-sm font-medium text-slate-300 hover:text-white transition">Altamira</button>
+                </div>
+
+                <select id="filtroCidade" onchange="atualizarDashboard()" class="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+                    <option value="TODAS">Todas as Cidades</option>
+                </select>
+
+                <label class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-sm cursor-pointer select-none">
+                    <input type="checkbox" id="checkInativos" checked onchange="atualizarDashboard()" class="rounded text-blue-600 focus:ring-0">
+                    <span class="text-slate-300">Incluir Inativos / S. Cadastro</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- CARDS DE KPI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="card p-4">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Volume Total (Filtro)</span>
+                <div id="kpi-hl" class="text-2xl font-bold text-blue-400 mt-1">0,00 HL</div>
+                <div id="kpi-peso-geral" class="text-xs text-slate-400 mt-1">100% do volume das 2 revendas</div>
+            </div>
+            <div class="card p-4">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Peso Tucuruí vs Altamira</span>
+                <div id="kpi-split" class="text-lg font-bold text-emerald-400 mt-1">-</div>
+                <div id="kpi-qtde" class="text-xs text-slate-400 mt-1">0 caixas/unid.</div>
+            </div>
+            <div class="card p-4">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 1 Vendedor</span>
+                <div id="kpi-top-vend" class="text-lg font-bold text-amber-400 mt-1 truncate">-</div>
+                <div id="kpi-top-vend-sub" class="text-xs text-slate-400 mt-1">-</div>
+            </div>
+            <div class="card p-4">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Top 1 Cidade</span>
+                <div id="kpi-top-cid" class="text-lg font-bold text-purple-400 mt-1 truncate">-</div>
+                <div id="kpi-top-cid-sub" class="text-xs text-slate-400 mt-1">-</div>
+            </div>
+        </div>
+
+        <!-- GRÁFICOS -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base font-semibold text-white">Top 15 Vendedores por Peso (% HL)</h2>
+                    <span class="text-xs text-slate-400">Volume (HL) e % de Representatividade</span>
+                </div>
+                <div class="h-80">
+                    <canvas id="chartVendedores"></canvas>
+                </div>
+            </div>
+
+            <div class="card p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base font-semibold text-white">Representatividade por Cidade (% HL)</h2>
+                    <span class="text-xs text-slate-400">Distribuição Geográfica do Volume</span>
+                </div>
+                <div class="h-80">
+                    <canvas id="chartCidades"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABELAS DETALHADAS LADO A LADO -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <div class="card p-5 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-base font-semibold text-white">Ranking de Peso por Vendedor</h3>
+                    <input type="text" id="buscaVendedor" oninput="renderTabelas()" placeholder="Buscar vendedor ou setor..." class="bg-slate-900 border border-slate-700 text-xs rounded px-2.5 py-1.5 text-slate-200 focus:outline-none">
+                </div>
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-800/80 text-slate-400 uppercase sticky top-0">
+                            <tr>
+                                <th class="py-2.5 px-3">Revenda</th>
+                                <th class="py-2.5 px-3">Setor / Vendedor</th>
+                                <th class="py-2.5 px-3 text-right">Volume (HL)</th>
+                                <th class="py-2.5 px-3 text-right">% Revenda</th>
+                                <th class="py-2.5 px-3 text-right">% Geral</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyVendedores" class="divide-y divide-slate-800"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card p-5 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-base font-semibold text-white">Ranking de Peso por Cidade</h3>
+                    <input type="text" id="buscaCidade" oninput="renderTabelas()" placeholder="Buscar cidade..." class="bg-slate-900 border border-slate-700 text-xs rounded px-2.5 py-1.5 text-slate-200 focus:outline-none">
+                </div>
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-800/80 text-slate-400 uppercase sticky top-0">
+                            <tr>
+                                <th class="py-2.5 px-3">Cidade</th>
+                                <th class="py-2.5 px-3">Revenda</th>
+                                <th class="py-2.5 px-3 text-right">Volume (HL)</th>
+                                <th class="py-2.5 px-3 text-right">% Revenda</th>
+                                <th class="py-2.5 px-3 text-right">% Geral</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyCidades" class="divide-y divide-slate-800"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const DADOS_BRUTOS = [{"revenda": "Altamira", "setor": "101", "vendedor": "Luan", "cidade": "Porto De", "inativo": false, "hl": 2930.5791, "qtde": 45867.0, "pdvs": 59}, {"revenda": "Altamira", "setor": "101", "vendedor": "Luan", "cidade": "Senador", "inativo": false, "hl": 5851.5826, "qtde": 119305.0, "pdvs": 114}, {"revenda": "Altamira", "setor": "102", "vendedor": "Marcos (Anapu)", "cidade": "Anapu", "inativo": false, "hl": 12634.1668, "qtde": 237775.23, "pdvs": 93}, {"revenda": "Altamira", "setor": "102", "vendedor": "Marcos (Anapu)", "cidade": "B Jardim", "inativo": false, "hl": 1074.1447, "qtde": 20899.0, "pdvs": 28}, {"revenda": "Altamira", "setor": "102", "vendedor": "Marcos (Anapu)", "cidade": "Medicila", "inativo": false, "hl": 14.7474, "qtde": 183.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "103", "vendedor": "Romario", "cidade": "Altamira", "inativo": false, "hl": 15.8445, "qtde": 1084.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "103", "vendedor": "Romario", "cidade": "Anapu", "inativo": false, "hl": 2249.882, "qtde": 40110.0, "pdvs": 119}, {"revenda": "Altamira", "setor": "103", "vendedor": "Romario", "cidade": "B Jardim", "inativo": false, "hl": 7.5354, "qtde": 164.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "103", "vendedor": "Romario", "cidade": "B Monte", "inativo": false, "hl": 681.7537, "qtde": 10737.0, "pdvs": 19}, {"revenda": "Altamira", "setor": "104", "vendedor": "Diego", "cidade": "Altamira", "inativo": false, "hl": 209.2804, "qtde": 3393.0, "pdvs": 5}, {"revenda": "Altamira", "setor": "104", "vendedor": "Diego", "cidade": "Anapu", "inativo": false, "hl": 44.1255, "qtde": 396.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "104", "vendedor": "Diego", "cidade": "Vitoria", "inativo": false, "hl": 5152.6223, "qtde": 76688.47, "pdvs": 119}, {"revenda": "Altamira", "setor": "105", "vendedor": "Alesson", "cidade": "Altamira", "inativo": false, "hl": 1923.058, "qtde": 30219.0, "pdvs": 116}, {"revenda": "Altamira", "setor": "105", "vendedor": "Alesson", "cidade": "B Monte", "inativo": false, "hl": 711.3302, "qtde": 12336.0, "pdvs": 23}, {"revenda": "Altamira", "setor": "105", "vendedor": "Alesson", "cidade": "Vitoria", "inativo": false, "hl": 1115.8544, "qtde": 16693.0, "pdvs": 36}, {"revenda": "Altamira", "setor": "201", "vendedor": "Vitor", "cidade": "Altamira", "inativo": false, "hl": 6245.0258, "qtde": 128851.0, "pdvs": 145}, {"revenda": "Altamira", "setor": "201", "vendedor": "Vitor", "cidade": "Senador", "inativo": false, "hl": 102.1748, "qtde": 2846.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "202", "vendedor": "Wanderson (Atm)", "cidade": "Altamira", "inativo": false, "hl": 19532.0667, "qtde": 311787.57, "pdvs": 111}, {"revenda": "Altamira", "setor": "203", "vendedor": "Flavio", "cidade": "Altamira", "inativo": false, "hl": 317.1889, "qtde": 5643.0, "pdvs": 19}, {"revenda": "Altamira", "setor": "203", "vendedor": "Flavio", "cidade": "Assurini", "inativo": false, "hl": 5423.1772, "qtde": 105300.0, "pdvs": 126}, {"revenda": "Altamira", "setor": "203", "vendedor": "Flavio", "cidade": "Senador", "inativo": false, "hl": 173.9162, "qtde": 3131.0, "pdvs": 13}, {"revenda": "Altamira", "setor": "204", "vendedor": "Raquel", "cidade": "Altamira", "inativo": false, "hl": 3712.481, "qtde": 54340.0, "pdvs": 164}, {"revenda": "Altamira", "setor": "204", "vendedor": "Raquel", "cidade": "Senador", "inativo": false, "hl": 1.7015, "qtde": 15.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "205", "vendedor": "Tiago (Medici)", "cidade": "Altamira", "inativo": false, "hl": 23.6349, "qtde": 585.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "205", "vendedor": "Tiago (Medici)", "cidade": "Brasil N", "inativo": false, "hl": 6106.8013, "qtde": 125471.0, "pdvs": 45}, {"revenda": "Altamira", "setor": "205", "vendedor": "Tiago (Medici)", "cidade": "Medicila", "inativo": false, "hl": 9398.3041, "qtde": 199045.22, "pdvs": 42}, {"revenda": "Altamira", "setor": "206", "vendedor": "Alesson Silva", "cidade": "Altamira", "inativo": false, "hl": 3870.803, "qtde": 59574.0, "pdvs": 159}, {"revenda": "Altamira", "setor": "206", "vendedor": "Alesson Silva", "cidade": "B Monte", "inativo": false, "hl": 15.3691, "qtde": 247.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "206", "vendedor": "Alesson Silva", "cidade": "Uruara", "inativo": false, "hl": 2.5959, "qtde": 38.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "206", "vendedor": "Alesson Silva", "cidade": "Vitoria", "inativo": false, "hl": 18.4902, "qtde": 256.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "207", "vendedor": "Dell", "cidade": "Altamira", "inativo": false, "hl": 17363.5886, "qtde": 278090.42, "pdvs": 91}, {"revenda": "Altamira", "setor": "301", "vendedor": "Elenice", "cidade": "Altamira", "inativo": false, "hl": 1.1697, "qtde": 19.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "301", "vendedor": "Elenice", "cidade": "Castelo Dos Sonhos", "inativo": false, "hl": 2279.8682, "qtde": 42567.07, "pdvs": 76}, {"revenda": "Altamira", "setor": "302", "vendedor": "Abner", "cidade": "Altamira", "inativo": false, "hl": 106.3751, "qtde": 2398.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "302", "vendedor": "Abner", "cidade": "Senador", "inativo": false, "hl": 30.6405, "qtde": 395.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "302", "vendedor": "Abner", "cidade": "Uruara", "inativo": false, "hl": 3743.4777, "qtde": 63453.0, "pdvs": 121}, {"revenda": "Altamira", "setor": "303", "vendedor": "Wanderson (Medic)", "cidade": "Medicila", "inativo": false, "hl": 2385.1331, "qtde": 48419.0, "pdvs": 113}, {"revenda": "Altamira", "setor": "303", "vendedor": "Wanderson (Medic)", "cidade": "Uruara", "inativo": false, "hl": 418.5254, "qtde": 10133.0, "pdvs": 6}, {"revenda": "Altamira", "setor": "304", "vendedor": "Reinaldo", "cidade": "Altamira", "inativo": false, "hl": 60.932, "qtde": 1330.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "304", "vendedor": "Reinaldo", "cidade": "Medicila", "inativo": false, "hl": 14.443, "qtde": 292.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "304", "vendedor": "Reinaldo", "cidade": "Uruara", "inativo": false, "hl": 14591.9105, "qtde": 311011.69, "pdvs": 118}, {"revenda": "Altamira", "setor": "305", "vendedor": "Patrick", "cidade": "Altamira", "inativo": false, "hl": 4.7793, "qtde": 86.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "305", "vendedor": "Patrick", "cidade": "Brasil N", "inativo": false, "hl": 3205.5048, "qtde": 63932.0, "pdvs": 128}, {"revenda": "Altamira", "setor": "305", "vendedor": "Patrick", "cidade": "Medicila", "inativo": false, "hl": 313.4767, "qtde": 6086.0, "pdvs": 15}, {"revenda": "Altamira", "setor": "305", "vendedor": "Patrick", "cidade": "Porto De", "inativo": false, "hl": 57.0969, "qtde": 966.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "991", "vendedor": "Eventos", "cidade": "Altamira", "inativo": true, "hl": 177.6128, "qtde": 5285.0, "pdvs": 34}, {"revenda": "Altamira", "setor": "991", "vendedor": "Eventos", "cidade": "B Monte", "inativo": true, "hl": 1.218, "qtde": 29.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "991", "vendedor": "Eventos", "cidade": "Senador", "inativo": true, "hl": 70.0756, "qtde": 1792.0, "pdvs": 2}, {"revenda": "Altamira", "setor": "991", "vendedor": "Eventos", "cidade": "Vitoria", "inativo": true, "hl": 7.8312, "qtde": 169.0, "pdvs": 3}, {"revenda": "Altamira", "setor": "992", "vendedor": "Compra De Funcionari", "cidade": "Altamira", "inativo": true, "hl": 64.0771, "qtde": 2759.0, "pdvs": 47}, {"revenda": "Altamira", "setor": "992", "vendedor": "Compra De Funcionari", "cidade": "Castelo Dos Sonhos", "inativo": true, "hl": 0.2175, "qtde": 8.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "992", "vendedor": "Compra De Funcionari", "cidade": "Uruara", "inativo": true, "hl": 2.9088, "qtde": 45.0, "pdvs": 2}, {"revenda": "Altamira", "setor": "992", "vendedor": "Compra De Funcionari", "cidade": "Vitoria", "inativo": true, "hl": 3.0532, "qtde": 70.0, "pdvs": 11}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Altamira", "inativo": true, "hl": 858.171, "qtde": 14762.0, "pdvs": 57}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Anapu", "inativo": true, "hl": 283.2889, "qtde": 4924.0, "pdvs": 4}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Assurini", "inativo": true, "hl": 25.3991, "qtde": 453.0, "pdvs": 2}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "B Monte", "inativo": true, "hl": 5.3948, "qtde": 76.0, "pdvs": 2}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Brasil N", "inativo": true, "hl": 133.4515, "qtde": 2862.0, "pdvs": 7}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Castelo Dos Sonhos", "inativo": true, "hl": 4.1142, "qtde": 62.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Medicila", "inativo": true, "hl": 968.5857, "qtde": 22037.25, "pdvs": 5}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Placas", "inativo": true, "hl": 1573.3959, "qtde": 27833.0, "pdvs": 5}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Senador", "inativo": true, "hl": 89.9521, "qtde": 1929.0, "pdvs": 2}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Uruara", "inativo": true, "hl": 91.7877, "qtde": 2144.0, "pdvs": 9}, {"revenda": "Altamira", "setor": "995", "vendedor": "Tratamento De Comoda", "cidade": "Vitoria", "inativo": true, "hl": 8.7574, "qtde": 109.0, "pdvs": 4}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Altamira", "inativo": true, "hl": 1033.8548, "qtde": 15987.0, "pdvs": 295}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Anapu", "inativo": true, "hl": 300.4489, "qtde": 4988.0, "pdvs": 68}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Assurini", "inativo": true, "hl": 229.7724, "qtde": 4173.0, "pdvs": 24}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "B Jardim", "inativo": true, "hl": 63.277, "qtde": 1342.0, "pdvs": 8}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "B Monte", "inativo": true, "hl": 20.851, "qtde": 309.0, "pdvs": 6}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Brasil N", "inativo": true, "hl": 145.725, "qtde": 2628.0, "pdvs": 41}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Castelo Dos Sonhos", "inativo": true, "hl": 197.9659, "qtde": 4225.0, "pdvs": 18}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Medicila", "inativo": true, "hl": 179.8172, "qtde": 3818.0, "pdvs": 64}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Placas", "inativo": true, "hl": 930.2537, "qtde": 18422.2, "pdvs": 8}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Porto De", "inativo": true, "hl": 94.8084, "qtde": 1449.0, "pdvs": 21}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Senador", "inativo": true, "hl": 94.3185, "qtde": 1725.0, "pdvs": 26}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Uruara", "inativo": true, "hl": 833.3241, "qtde": 18561.4, "pdvs": 94}, {"revenda": "Altamira", "setor": "997", "vendedor": "Pdv S Inativos", "cidade": "Vitoria", "inativo": true, "hl": 145.0155, "qtde": 2293.0, "pdvs": 43}, {"revenda": "Altamira", "setor": "999", "vendedor": "Fabrica", "cidade": "Altamira", "inativo": true, "hl": 73.6921, "qtde": 1449.0, "pdvs": 16}, {"revenda": "Altamira", "setor": "999", "vendedor": "Fabrica", "cidade": "Assurini", "inativo": true, "hl": 13.4828, "qtde": 289.0, "pdvs": 2}, {"revenda": "Altamira", "setor": "999", "vendedor": "Fabrica", "cidade": "Medicila", "inativo": true, "hl": 4.2082, "qtde": 55.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "999", "vendedor": "Fabrica", "cidade": "Uruara", "inativo": true, "hl": 0.4875, "qtde": 12.0, "pdvs": 1}, {"revenda": "Altamira", "setor": "999", "vendedor": "Fabrica", "cidade": "Vitoria", "inativo": true, "hl": 2.7204, "qtde": 41.0, "pdvs": 3}, {"revenda": "Tucuruí", "setor": "101", "vendedor": "Guilherme", "cidade": "Maracaja", "inativo": false, "hl": 1052.1682, "qtde": 17942.0, "pdvs": 37}, {"revenda": "Tucuruí", "setor": "101", "vendedor": "Guilherme", "cidade": "Novo Repar", "inativo": false, "hl": 4666.3923, "qtde": 84679.1, "pdvs": 140}, {"revenda": "Tucuruí", "setor": "101", "vendedor": "Guilherme", "cidade": "Pacaja", "inativo": false, "hl": 17.5616, "qtde": 218.0, "pdvs": 2}, {"revenda": "Tucuruí", "setor": "102", "vendedor": "Ozeias Ferreira", "cidade": "Maracaja", "inativo": false, "hl": 4142.818, "qtde": 87832.82, "pdvs": 26}, {"revenda": "Tucuruí", "setor": "102", "vendedor": "Ozeias Ferreira", "cidade": "Novo Repar", "inativo": false, "hl": 15110.9637, "qtde": 273465.45, "pdvs": 63}, {"revenda": "Tucuruí", "setor": "102", "vendedor": "Ozeias Ferreira", "cidade": "Pacaja", "inativo": false, "hl": 7396.2888, "qtde": 148537.06, "pdvs": 45}, {"revenda": "Tucuruí", "setor": "103", "vendedor": "Uanderson", "cidade": "Pacaja", "inativo": false, "hl": 3095.7379, "qtde": 58178.0, "pdvs": 136}, {"revenda": "Tucuruí", "setor": "104", "vendedor": "Pedro Henrique", "cidade": "Pacaja", "inativo": false, "hl": 29.332, "qtde": 655.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "104", "vendedor": "Pedro Henrique", "cidade": "Picarra", "inativo": false, "hl": 1958.3253, "qtde": 34539.0, "pdvs": 34}, {"revenda": "Tucuruí", "setor": "104", "vendedor": "Pedro Henrique", "cidade": "Sao Gerald", "inativo": false, "hl": 7211.6315, "qtde": 129350.0, "pdvs": 129}, {"revenda": "Tucuruí", "setor": "105", "vendedor": "Ailson", "cidade": "Gelado", "inativo": false, "hl": 2980.4188, "qtde": 54645.0, "pdvs": 77}, {"revenda": "Tucuruí", "setor": "105", "vendedor": "Ailson", "cidade": "Maracaja", "inativo": false, "hl": 261.122, "qtde": 5411.0, "pdvs": 2}, {"revenda": "Tucuruí", "setor": "105", "vendedor": "Ailson", "cidade": "Novo Repar", "inativo": false, "hl": 1343.299, "qtde": 25235.0, "pdvs": 64}, {"revenda": "Tucuruí", "setor": "105", "vendedor": "Ailson", "cidade": "Pacaja", "inativo": false, "hl": 13.7013, "qtde": 267.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "11", "vendedor": "Setor Inativo", "cidade": "Breu Branco", "inativo": true, "hl": 0.2017, "qtde": 5.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "11", "vendedor": "Setor Inativo", "cidade": "Goianesia", "inativo": true, "hl": 0.5444, "qtde": 15.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "11", "vendedor": "Setor Inativo", "cidade": "Picarra", "inativo": true, "hl": 1.7455, "qtde": 24.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "11", "vendedor": "Setor Inativo", "cidade": "Tucurui", "inativo": true, "hl": 34.1151, "qtde": 743.0, "pdvs": 6}, {"revenda": "Tucuruí", "setor": "201", "vendedor": "Doniclei", "cidade": "Tucurui", "inativo": false, "hl": 4392.5962, "qtde": 65452.0, "pdvs": 114}, {"revenda": "Tucuruí", "setor": "201", "vendedor": "Doniclei", "cidade": "Vila", "inativo": false, "hl": 642.2463, "qtde": 9628.0, "pdvs": 24}, {"revenda": "Tucuruí", "setor": "202", "vendedor": "Luiz Siqueira", "cidade": "Pacaja", "inativo": false, "hl": 38.5511, "qtde": 818.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "202", "vendedor": "Luiz Siqueira", "cidade": "Tucurui", "inativo": false, "hl": 4295.2937, "qtde": 60540.0, "pdvs": 139}, {"revenda": "Tucuruí", "setor": "203", "vendedor": "Alexandre Brandao", "cidade": "Tucurui", "inativo": false, "hl": 23045.3144, "qtde": 426191.0, "pdvs": 76}, {"revenda": "Tucuruí", "setor": "203", "vendedor": "Alexandre Brandao", "cidade": "Vila", "inativo": false, "hl": 2198.1324, "qtde": 41084.0, "pdvs": 9}, {"revenda": "Tucuruí", "setor": "204", "vendedor": "Marco Leite", "cidade": "Tucurui", "inativo": false, "hl": 3568.0146, "qtde": 60616.0, "pdvs": 131}, {"revenda": "Tucuruí", "setor": "204", "vendedor": "Marco Leite", "cidade": "Vila", "inativo": false, "hl": 768.1851, "qtde": 13012.0, "pdvs": 25}, {"revenda": "Tucuruí", "setor": "205", "vendedor": "Ferdinando", "cidade": "Tucurui", "inativo": false, "hl": 6533.4148, "qtde": 102855.1, "pdvs": 151}, {"revenda": "Tucuruí", "setor": "206", "vendedor": "Renan", "cidade": "Breu Branco", "inativo": false, "hl": 9098.5324, "qtde": 163097.91, "pdvs": 55}, {"revenda": "Tucuruí", "setor": "206", "vendedor": "Renan", "cidade": "Erick", "inativo": false, "hl": 835.6442, "qtde": 17974.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "206", "vendedor": "Renan", "cidade": "Goianesia", "inativo": false, "hl": 4578.2246, "qtde": 89873.0, "pdvs": 54}, {"revenda": "Tucuruí", "setor": "206", "vendedor": "Renan", "cidade": "Nazare", "inativo": false, "hl": 1512.541, "qtde": 26021.0, "pdvs": 28}, {"revenda": "Tucuruí", "setor": "206", "vendedor": "Renan", "cidade": "Pitinga", "inativo": false, "hl": 1032.024, "qtde": 18209.0, "pdvs": 37}, {"revenda": "Tucuruí", "setor": "207", "vendedor": "Aias", "cidade": "Breu Branco", "inativo": false, "hl": 7845.1609, "qtde": 115823.0, "pdvs": 184}, {"revenda": "Tucuruí", "setor": "207", "vendedor": "Aias", "cidade": "Novo Repar", "inativo": false, "hl": 54.9486, "qtde": 857.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "207", "vendedor": "Aias", "cidade": "Tucurui", "inativo": false, "hl": 46.1102, "qtde": 735.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "852", "vendedor": "Inadiplente", "cidade": "Breu Branco", "inativo": true, "hl": 39.7928, "qtde": 432.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "852", "vendedor": "Inadiplente", "cidade": "Tucurui", "inativo": true, "hl": 357.3731, "qtde": 8356.0, "pdvs": 6}, {"revenda": "Tucuruí", "setor": "852", "vendedor": "Inadiplente", "cidade": "Vila", "inativo": true, "hl": 24.5654, "qtde": 407.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "990", "vendedor": "Balcao", "cidade": "Tucurui", "inativo": true, "hl": 46.656, "qtde": 1274.0, "pdvs": 3}, {"revenda": "Tucuruí", "setor": "990", "vendedor": "Balcao", "cidade": "Vila", "inativo": true, "hl": 10.1076, "qtde": 324.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "991", "vendedor": "Eventos", "cidade": "Pacaja", "inativo": true, "hl": 1.9, "qtde": 190.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "991", "vendedor": "Eventos", "cidade": "Tucurui", "inativo": true, "hl": 30.7108, "qtde": 453.0, "pdvs": 3}, {"revenda": "Tucuruí", "setor": "992", "vendedor": "Compra Funcionario", "cidade": "Tucurui", "inativo": true, "hl": 5.1966, "qtde": 215.0, "pdvs": 6}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Breu Branco", "inativo": true, "hl": 671.4756, "qtde": 11328.0, "pdvs": 84}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Gelado", "inativo": true, "hl": 96.7235, "qtde": 1679.0, "pdvs": 14}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Goianesia", "inativo": true, "hl": 171.2839, "qtde": 2912.0, "pdvs": 19}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Maracaja", "inativo": true, "hl": 53.1682, "qtde": 964.0, "pdvs": 9}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Nazare", "inativo": true, "hl": 25.5082, "qtde": 277.0, "pdvs": 5}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Novo Repar", "inativo": true, "hl": 820.8316, "qtde": 16022.0, "pdvs": 66}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Pacaja", "inativo": true, "hl": 1080.7877, "qtde": 21601.0, "pdvs": 53}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Picarra", "inativo": true, "hl": 203.3061, "qtde": 3586.0, "pdvs": 10}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Pitinga", "inativo": true, "hl": 49.3853, "qtde": 818.0, "pdvs": 10}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Sao Gerald", "inativo": true, "hl": 107.8702, "qtde": 1753.0, "pdvs": 41}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Tucurui", "inativo": true, "hl": 2515.2042, "qtde": 51918.36, "pdvs": 389}, {"revenda": "Tucuruí", "setor": "997", "vendedor": "Inativos", "cidade": "Vila", "inativo": true, "hl": 108.8174, "qtde": 2041.0, "pdvs": 18}, {"revenda": "Tucuruí", "setor": "999", "vendedor": "Fabrica", "cidade": "Maracaja", "inativo": true, "hl": 19.0164, "qtde": 225.0, "pdvs": 1}, {"revenda": "Tucuruí", "setor": "999", "vendedor": "Fabrica", "cidade": "Tucurui", "inativo": true, "hl": 180.6821, "qtde": 3478.0, "pdvs": 12}];
+        let revendaAtual = 'TODAS';
+        let chartVendInstance = null;
+        let chartCidInstance = null;
+        let cacheVendList = [];
+        let cacheCidList = [];
+
+        const fmtHL = (v) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' HL';
+        const fmtPct = (v) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+        const fmtInt = (v) => Math.round(v).toLocaleString('pt-BR');
+
+        function setRevenda(rev) {
+            revendaAtual = rev;
+            ['TODAS', 'Tucuruí', 'Altamira'].forEach(r => {
+                const btn = document.getElementById('tab-' + r);
+                if (r === rev) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            popularSelectCidades();
+            atualizarDashboard();
+        }
+
+        function popularSelectCidades() {
+            const sel = document.getElementById('filtroCidade');
+            const valorAntigo = sel.value;
+            const incluirInativos = document.getElementById('checkInativos').checked;
+            
+            const cidades = new Set();
+            DADOS_BRUTOS.forEach(d => {
+                if ((revendaAtual === 'TODAS' || d.revenda === revendaAtual) && (incluirInativos || !d.inativo)) {
+                    cidades.add(d.cidade);
+                }
+            });
+            
+            const listaOrdenada = Array.from(cidades).sort();
+            sel.innerHTML = '<option value="TODAS">Todas as Cidades (' + listaOrdenada.length + ')</option>';
+            listaOrdenada.forEach(c => {
+                sel.innerHTML += `<option value="${c}">${c}</option>`;
+            });
+            if (listaOrdenada.includes(valorAntigo)) sel.value = valorAntigo;
+        }
+
+        function atualizarDashboard() {
+            const incluirInativos = document.getElementById('checkInativos').checked;
+            const cidadeSelecionada = document.getElementById('filtroCidade').value;
+
+            let hlTotalGeral = 0;
+            const hlPorRevenda = { 'Tucuruí': 0, 'Altamira': 0 };
+
+            DADOS_BRUTOS.forEach(d => {
+                if (!incluirInativos && d.inativo) return;
+                hlTotalGeral += d.hl;
+                hlPorRevenda[d.revenda] = (hlPorRevenda[d.revenda] || 0) + d.hl;
+            });
+
+            const dadosFiltrados = DADOS_BRUTOS.filter(d => {
+                if (!incluirInativos && d.inativo) return false;
+                if (revendaAtual !== 'TODAS' && d.revenda !== revendaAtual) return false;
+                if (cidadeSelecionada !== 'TODAS' && d.cidade !== cidadeSelecionada) return false;
+                return true;
+            });
+
+            const hlFiltro = dadosFiltrados.reduce((acc, c) => acc + c.hl, 0);
+            const qtdeFiltro = dadosFiltrados.reduce((acc, c) => acc + c.qtde, 0);
+
+            const mapVend = {};
+            dadosFiltrados.forEach(d => {
+                const key = `${d.revenda}|${d.setor}|${d.vendedor}`;
+                if (!mapVend[key]) {
+                    mapVend[key] = { revenda: d.revenda, setor: d.setor, vendedor: d.vendedor, hl: 0, qtde: 0 };
+                }
+                mapVend[key].hl += d.hl;
+                mapVend[key].qtde += d.qtde;
+            });
+
+            cacheVendList = Object.values(mapVend).sort((a, b) => b.hl - a.hl).map(v => ({
+                ...v,
+                pesoFiltro: hlFiltro > 0 ? (v.hl / hlFiltro) * 100 : 0,
+                pesoRevenda: hlPorRevenda[v.revenda] > 0 ? (v.hl / hlPorRevenda[v.revenda]) * 100 : 0,
+                pesoGeral: hlTotalGeral > 0 ? (v.hl / hlTotalGeral) * 100 : 0
+            }));
+
+            const mapCid = {};
+            dadosFiltrados.forEach(d => {
+                const key = `${d.revenda}|${d.cidade}`;
+                if (!mapCid[key]) {
+                    mapCid[key] = { revenda: d.revenda, cidade: d.cidade, hl: 0, qtde: 0 };
+                }
+                mapCid[key].hl += d.hl;
+                mapCid[key].qtde += d.qtde;
+            });
+
+            cacheCidList = Object.values(mapCid).sort((a, b) => b.hl - a.hl).map(c => ({
+                ...c,
+                pesoFiltro: hlFiltro > 0 ? (c.hl / hlFiltro) * 100 : 0,
+                pesoRevenda: hlPorRevenda[c.revenda] > 0 ? (c.hl / hlPorRevenda[c.revenda]) * 100 : 0,
+                pesoGeral: hlTotalGeral > 0 ? (c.hl / hlTotalGeral) * 100 : 0
+            }));
+
+            document.getElementById('kpi-hl').innerText = fmtHL(hlFiltro);
+            const pctDoGeral = hlTotalGeral > 0 ? (hlFiltro / hlTotalGeral) * 100 : 0;
+            document.getElementById('kpi-peso-geral').innerText = `${fmtPct(pctDoGeral)} do volume total consolidado (${fmtHL(hlTotalGeral)})`;
+
+            const pTuc = hlTotalGeral > 0 ? (hlPorRevenda['Tucuruí'] / hlTotalGeral) * 100 : 0;
+            const pAlt = hlTotalGeral > 0 ? (hlPorRevenda['Altamira'] / hlTotalGeral) * 100 : 0;
+            document.getElementById('kpi-split').innerText = `TUC: ${fmtPct(pTuc)} | ALT: ${fmtPct(pAlt)}`;
+            document.getElementById('kpi-qtde').innerText = `${fmtInt(qtdeFiltro)} caixas/unid. movimentadas`;
+
+            if (cacheVendList.length > 0) {
+                const topV = cacheVendList[0];
+                document.getElementById('kpi-top-vend').innerText = `${topV.setor} - ${topV.vendedor}`;
+                document.getElementById('kpi-top-vend-sub').innerText = `${fmtHL(topV.hl)} (${fmtPct(topV.pesoFiltro)} da seleção)`;
+            } else {
+                document.getElementById('kpi-top-vend').innerText = '-';
+                document.getElementById('kpi-top-vend-sub').innerText = '-';
+            }
+
+            if (cacheCidList.length > 0) {
+                const topC = cacheCidList[0];
+                document.getElementById('kpi-top-cid').innerText = `${topC.cidade} (${topC.revenda})`;
+                document.getElementById('kpi-top-cid-sub').innerText = `${fmtHL(topC.hl)} (${fmtPct(topC.pesoFiltro)} da seleção)`;
+            } else {
+                document.getElementById('kpi-top-cid').innerText = '-';
+                document.getElementById('kpi-top-cid-sub').innerText = '-';
+            }
+
+            renderGraficos();
+            renderTabelas();
+        }
+
+        function renderGraficos() {
+            const top15Vend = cacheVendList.slice(0, 15);
+            const top15Cid = cacheCidList.slice(0, 15);
+
+            if (chartVendInstance) chartVendInstance.destroy();
+            chartVendInstance = new Chart(document.getElementById('chartVendedores'), {
+                type: 'bar',
+                data: {
+                    labels: top15Vend.map(v => `${v.setor} - ${v.vendedor} (${v.revenda.slice(0,3)})`),
+                    datasets: [{
+                        label: 'Volume (HL)',
+                        data: top15Vend.map(v => v.hl),
+                        backgroundColor: top15Vend.map(v => v.revenda === 'Tucuruí' ? '#3b82f6' : '#10b981'),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const item = top15Vend[ctx.dataIndex];
+                                    return ` ${fmtHL(item.hl)} | Peso Revenda: ${fmtPct(item.pesoRevenda)} | Peso Geral: ${fmtPct(item.pesoGeral)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } }
+                    }
+                }
+            });
+
+            if (chartCidInstance) chartCidInstance.destroy();
+            chartCidInstance = new Chart(document.getElementById('chartCidades'), {
+                type: 'bar',
+                data: {
+                    labels: top15Cid.map(c => `${c.cidade} (${c.revenda.slice(0,3)})`),
+                    datasets: [{
+                        label: 'Volume (HL)',
+                        data: top15Cid.map(c => c.hl),
+                        backgroundColor: top15Cid.map(c => c.revenda === 'Tucuruí' ? '#8b5cf6' : '#f59e0b'),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const item = top15Cid[ctx.dataIndex];
+                                    return ` ${fmtHL(item.hl)} | Peso Revenda: ${fmtPct(item.pesoRevenda)} | Peso Geral: ${fmtPct(item.pesoGeral)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function renderTabelas() {
+            const termoV = document.getElementById('buscaVendedor').value.toLowerCase();
+            const termoC = document.getElementById('buscaCidade').value.toLowerCase();
+
+            const tbodyV = document.getElementById('tbodyVendedores');
+            tbodyV.innerHTML = cacheVendList
+                .filter(v => `${v.setor} ${v.vendedor} ${v.revenda}`.toLowerCase().includes(termoV))
+                .map(v => `
+                    <tr class="hover:bg-slate-800/60 transition">
+                        <td class="py-2 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${v.revenda === 'Tucuruí' ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300'}">${v.revenda}</span>
+                        </td>
+                        <td class="py-2 px-3 font-medium text-slate-200">${v.setor} - ${v.vendedor}</td>
+                        <td class="py-2 px-3 text-right font-semibold text-white">${fmtHL(v.hl)}</td>
+                        <td class="py-2 px-3 text-right text-blue-400 font-medium">${fmtPct(v.pesoRevenda)}</td>
+                        <td class="py-2 px-3 text-right text-slate-400">${fmtPct(v.pesoGeral)}</td>
+                    </tr>
+                `).join('');
+
+            const tbodyC = document.getElementById('tbodyCidades');
+            tbodyC.innerHTML = cacheCidList
+                .filter(c => `${c.cidade} ${c.revenda}`.toLowerCase().includes(termoC))
+                .map(c => `
+                    <tr class="hover:bg-slate-800/60 transition">
+                        <td class="py-2 px-3 font-medium text-slate-200">${c.cidade}</td>
+                        <td class="py-2 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${c.revenda === 'Tucuruí' ? 'bg-purple-500/20 text-purple-300' : 'bg-amber-500/20 text-amber-300'}">${c.revenda}</span>
+                        </td>
+                        <td class="py-2 px-3 text-right font-semibold text-white">${fmtHL(c.hl)}</td>
+                        <td class="py-2 px-3 text-right text-purple-400 font-medium">${fmtPct(c.pesoRevenda)}</td>
+                        <td class="py-2 px-3 text-right text-slate-400">${fmtPct(c.pesoGeral)}</td>
+                    </tr>
+                `).join('');
+        }
+
+        popularSelectCidades();
+        atualizarDashboard();
+    </script>
+</body>
+</html>
